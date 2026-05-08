@@ -55,6 +55,7 @@ class Site extends Core_Controller
 	{
 		$useQueue = $this->input->get('use_queue') !== 'false';
 		$this->load->model('rekapitulasi/Ratio_Model', 'ratio');
+		$this->load->model('rekapitulasi/Ratio_Detail_Model', 'ratio_detail');
 
 		$ratio = $this->ratio->get_ratio();
 		$kinerja_bas = $this->ratio->kinerja_bas();
@@ -84,6 +85,9 @@ class Site extends Core_Controller
 		$jumlah_sidang = isset($kinerja_bas->jumlah_sidang) ? $kinerja_bas->jumlah_sidang : 0;
 		$not_uploaded_bas = $jumlah_sidang - $uploaded_bas;
 		$bas_display = number_format_indo($uploaded_bas) . ' / ' . number_format_indo($jumlah_sidang);
+		$bas_belum_unggah_by_pp = $this->ratio_detail->get_bas_belum_unggah_group_by_pp();
+		$bas_belum_unggah_detail = $this->ratio_detail->get_bas_belum_unggah_detail();
+
 
 		$percentage_minutasi = isset($kinerja_pp_setor->percentage_minutasi) ? $kinerja_pp_setor->percentage_minutasi : 0;
 		$setor_putus_tahun_ini = isset($kinerja_pp_setor->setor_putus_tahun_ini) ? $kinerja_pp_setor->setor_putus_tahun_ini : 0;
@@ -104,7 +108,66 @@ class Site extends Core_Controller
 
 		$text .= "👉🏼 *Unggah BAS:* " . $percentage_bas . "%\n";
 		$text .= "  • Jumlah Sidang: " . number_format_indo($jumlah_sidang) . "\n";
-		$text .= "  • Belum Unggah: *" . number_format_indo($not_uploaded_bas) . "*\n\n";
+		$text .= "  • Belum Unggah: *" . number_format_indo($not_uploaded_bas) . "*\n";
+
+			if (!empty($bas_belum_unggah_detail)) {
+				$grouped = [];
+
+				foreach ($bas_belum_unggah_detail as $row) {
+					$nama_pp = !empty($row->nama_pp) ? $row->nama_pp : 'Tanpa nama PP';
+					$grouped[$nama_pp][] = $row;
+				}
+
+				$text .= "  • *Daftar Jadwal BAS Belum Upload:*\n";
+
+				$no_pp = 1;
+				$max_pp = 10;
+				$max_jadwal_per_pp = 5;
+
+				foreach ($grouped as $nama_pp => $items) {
+					if ($no_pp > $max_pp) {
+						$sisa_pp = count($grouped) - $max_pp;
+						if ($sisa_pp > 0) {
+							$text .= "    dan " . number_format_indo($sisa_pp) . " PP lainnya.\n";
+						}
+						break;
+					}
+
+					$text .= "    " . $no_pp . ". " . $nama_pp . " - *" . number_format_indo(count($items)) . "* BAS\n";
+
+					$no_jadwal = 1;
+					foreach ($items as $item) {
+						if ($no_jadwal > $max_jadwal_per_pp) {
+							$sisa_jadwal = count($items) - $max_jadwal_per_pp;
+							if ($sisa_jadwal > 0) {
+								$text .= "       dan " . number_format_indo($sisa_jadwal) . " jadwal lainnya.\n";
+							}
+							break;
+						}
+
+						$tanggal_sidang = !empty($item->tanggal_sidang)
+							? date('d/m/Y', strtotime($item->tanggal_sidang))
+							: '-';
+
+						$nomor_perkara = !empty($item->nomor_perkara)
+							? $item->nomor_perkara
+							: '-';
+
+						$agenda = !empty($item->agenda)
+							? $item->agenda
+							: '-';
+
+						$text .= "       - " . $tanggal_sidang . " | " . $nomor_perkara . " | " . $agenda . "\n";
+
+						$no_jadwal++;
+					}
+
+					$no_pp++;
+				}
+			}
+
+			$text .= "\n";
+
 
 		$text .= "👉🏼 *Putus Setor Panmud:* " . $percentage_minutasi . "%\n";
 		$text .= "  • Jumlah Putus: " . number_format_indo($jumlah_putus_tahun_ini) . "\n";
